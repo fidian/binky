@@ -1,0 +1,37 @@
+<html><head><title>Web Server Information</title>
+</head><body bgcolor="#FFFFFF">
+<h1 align=center>Web Server Information</h1>
+
+<p>First off, the web server must have PERL and a few <a
+href="perl_modules.html">modules</a> on it for the web-based administration
+to work properly.  Secondly, it must be configured to execute .pl files as
+CGI scripts.  Lastly, you probably want to password protect the directory.</p>
+
+<ul>
+<li><a href="#apache">Apache</a>
+
+<hr>
+
+<h3><a name="apache"></a>Apache</h3>
+
+<p>In the /etc/apache/access.conf (or wherever the access.conf file is),
+just make sure to have "ExecCGI" listed on the "Options" line.  You might
+have to add a section that specifies Binky's home directory explicitly to
+override the default settings for users.</p>
+
+<p>Edit the srm.conf file in the same directory and add "AddHandler
+cgi-script .pl" to it (you should see a section about CGI scripts in
+there).  Lastly, edit httpd.conf and make sure you have the CGI module 
+loaded.</p>
+
+<p>Change to Binky's installation directory and rename 'webadmin' to
+'public_html' (or whatever the server thinks is the user's web directory.
+Read the Apache documentation about .htaccess files and how you can restrict
+access to this directory.
+
+<p>This won't make PERL run blazingly fast, but it should be good enough for
+administration of Binky.  Read more about mod_perl and other tweaks that you
+can do to the server to make it faster when interpreting PERL if you plan on
+using more PERL scripts on your server.
+
+</body></html>
