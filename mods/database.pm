@@ -51,7 +51,7 @@ sub DatabaseConnect {
    %CONFIG = ReadConfig($ConfigFile);
    
    $DBHandle = DBI->connect($CONFIG{'DSN'}, $CONFIG{'USERNAME'}, 
-      $CONFIG{'PASSWORD'});
+      $CONFIG{'PASSWORD'}, { AutoCommit => 1 });
 }
 
 
