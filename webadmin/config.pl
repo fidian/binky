@@ -47,6 +47,20 @@ DatabaseConnect("$base_dir/config.cfg");
 	 "the database format.",
       "TYPE" => "FIXED",
    },
+   "MOD_ADS" => {
+      "VALUE" => "([0-9]{1,3}|1000)",
+      "DESC" => "The chance that an ad will display.  Zero means that an " .
+         "ad will never be displayed, 250 is a 25% chance, and 1000 will " .
+	 "show an ad in every results message.",
+      "INVALID_MESG" => "This must be a whole number from 0 to 1000.",
+      "TYPE" => "NUMBER",
+   },
+   "MOD_MOTD" => {
+      "DESC" => "Announcement message printed from Binky on every results " .
+         "page.  If you don't want an announcement message printed, or if " .
+	 "you merely have nothing to say, leave this blank.",
+      "TYPE" => "TEXTAREA",
+   },
    "QUOTA_AMOUNT" => {
       "VALUE" => "[0-9]+",
       "DESC" => "How many kilobytes of data can the user download " .
@@ -82,7 +96,7 @@ if (param()) {
 print "<FORM METHOD=POST ACTION=config.pl>\n";
 
 # Generate a hash for easy printing
-my (%TableData, $key, $val, $isValid, $real, $bigKey);
+my (%TableData, $key, $val, $isValid, $real, $bigKey, $RowStart);
 
 %TableData = GenerateTableData(%data_desc);
 
@@ -97,23 +111,45 @@ foreach $key (sort(keys(%TableData))) {
    foreach $val (sort(@{$TableData{$key}})) {
       $bigKey = $key . '_' . $val;
       $real = GetConfig($bigKey);
-      if ($real =~ /^$data_desc{$bigKey}{'VALUE'}$/) {
-         print "<tr>\n";
+      if (! defined($data_desc{$bigKey}{'VALUE'}) ||
+          $real =~ /^$data_desc{$bigKey}{'VALUE'}$/) {
+	 $RowStart = "<tr>\n";
 	 $isValid = 1;
       } else {
-         print "<tr bgcolor=#FFAFAF>\n";
+         $RowStart = "<tr bgcolor=#FFAFAF>\n";
 	 $isValid = 0;
       }
-      print "<th align=left>$val</th>\n";
-      print "<td align=center>$real";
-      if (! $isValid) {
-         print "<br><b><i>INVALID!</i></b>";
+      
+      if ($data_desc{$bigKey}{'TYPE'} ne 'TEXTAREA') {
+         print $RowStart, "<th align=left>$val</th>\n";
+         print "<td align=center>" . CGI::escapeHTML($real);
+         if (! $isValid) {
+            print "<br><b><i>INVALID!</i></b>";
+         }
+         print "</td>\n";
+         print "<td>";
+         print GetInputBox($bigKey, $real, %{$data_desc{$bigKey}});
+         print "</td>\n";
+         print "</tr>\n";
+      } else {
+         print $RowStart;
+         print "<th colspan=3 align=left>$val</th>\n";
+	 print "</tr>\n";
+	 print $RowStart;
+	 print "<td colspan=3 align=left>";
+	 $_ = CGI::escapeHTML($real);
+	 s/\n/<br>/g;
+	 print;
+	 if (! $isValid) {
+	    print "<br><B><I>INVALID!</I></b>";
+	 }
+	 print "</td>\n</tr>\n";
+	 print $RowStart;
+	 print "<td colspan=3 align=left>";
+	 print GetInputBox($bigKey, $real, %{$data_desc{$bigKey}});
+	 print "</td>\n</tr>\n";
       }
-      print "</td>\n";
-      print "<td>";
-      print GetInputBox($bigKey, $real, %{$data_desc{$bigKey}});
-      print "</td>\n";
-      print "</tr>\n";
+      
       if (! $isValid) {
          print "<tr bgcolor=#FFAFAF>\n<Td colspan=3>" .
 	    $data_desc{$bigKey}{'DESC'} . "<br><b>" .
@@ -178,7 +214,7 @@ sub GenerateTableData {
    my ($key, @bits, %TableData);
    
    foreach $key (keys(%data_desc)) {
-      @bits = split(/_/, $key);
+      @bits = split(/_/, $key, 2);
       if (! defined($bits[1])) {
          die "Error with definition of configuration variable \"$key\"";
       }
@@ -207,7 +243,7 @@ sub HandleCGIPost {
 	    $dbh->do("INSERT INTO config (config_key, config_value) " .
 	       "VALUES (" . $dbh->quote($n) . ", " .
 	       $dbh->quote(param($n)) . ")");
-	    print "$n has been changed to " . param($n) . "<br>\n";
+	    print "$n has been updated.<br>\n";
 	 }
       } elsif ($n eq "delete") {
 	 foreach $key (param($n)) {
@@ -228,17 +264,19 @@ sub GetInputBox {
    
    if ($data{'TYPE'} eq 'FIXED') {
       # Unchangeable
-      $str = "<b>$real</b> &nbsp; &nbsp; (Unchangeable)";
+      $str = "<b>" . CGI::escapeHTML($real) . 
+         "</b> &nbsp; &nbsp; (Unchangeable)";
    } elsif ($data{'TYPE'} eq 'SELECT') {
       $found = 0;
       $str = "";
       foreach $key (keys(%{$data{'DATA'}})) {
-         $str .= "<option value=\"" . $data{'DATA'}{$key} . "\"";
+         $str .= "<option value=\"" . CGI::escapeHTML($data{'DATA'}{$key}) . 
+	    "\"";
          if ($data{'DATA'}{$key} eq $real) {
 	    $found = 1;
 	    $str .= " SELECTED";
 	 }
-	 $str .= ">$key";
+	 $str .= ">" . CGI::escapeHTML($key);
 	 if ($found == 1) {
 	    $found = 2;
 	    $str .= " (Current Value)";
@@ -246,13 +284,21 @@ sub GetInputBox {
 	 $str .= "</option>\n";
       }
       if (! $found) {
-         $str = "<option value=\"$real\">$real (Current Value)" .
+         $str = "<option value=\"" . CGI::escapeHTML($real) . 
+	    "\">" . CGI::escapeHTML($real) . " (Current Value)" .
 	    "</option>\n$str";
       }
-      $str = "<select name=\"$name\">\n$str</select>\n";
+      $str = "<select name=\"" . CGI::escapeHTML($name) . 
+         "\">\n$str</select>\n";
    } elsif ($data{'TYPE'} eq 'NUMBER') {
       # Number field
-      $str = "<input type=text name=$name size=20 value=\"$real\">";
+      $str = "<input type=text name=\"" . CGI::escapeHTML($name) . 
+         "\" size=20 value=\"" . CGI::escapeHTML($real) . "\">";
+   } elsif ($data{'TYPE'} eq 'TEXTAREA') {
+      # Multiple line box
+      $str = "<textarea name=\"" . CGI::escapeHTML($name) . 
+         "\" rows=5 cols=60 wrap=virtual>" . CGI::escapeHTML($real) . 
+	 "</textarea>";
    }
    
    return $str;
